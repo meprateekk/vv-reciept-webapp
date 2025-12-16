@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/pdf_generator.dart';
+import '../services/pdf_service.dart'; // CHANGED: New Service Import
 import '../utils/formatters.dart';
 
 class ContractFormScreen extends StatefulWidget {
@@ -23,7 +23,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
   late TextEditingController propNameController;
 
   final nameController = TextEditingController();
-  final domainController = TextEditingController(); // e.g. Plumber
+  final domainController = TextEditingController();
   final mobileController = TextEditingController();
   final addressController = TextEditingController();
   final rateController = TextEditingController();
@@ -39,6 +39,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
 
   @override
   void dispose() {
+    // ... (Keep existing dispose logic)
     nameController.dispose();
     domainController.dispose();
     mobileController.dispose();
@@ -59,6 +60,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Data map create kiya
       final contractData = {
         'sNo': sNoController.text,
         'date': dateController.text,
@@ -73,32 +75,20 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
         'terms': termsController.text,
       };
 
-      // Save to Supabase
+      // 1. Supabase me save kiya
       await _supabase.from('documents').insert({
         'site_id': widget.siteId,
-        'type': 'agreement', // Type is 'agreement'
+        'type': 'agreement',
         'content': contractData,
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      // Generate PDF
-      await PdfGenerator.generateAgreement(
-        sNoController.text,
-        dateController.text,
-        propNameController.text,
-        nameController.text,
-        domainController.text,
-        mobileController.text,
-        addressController.text,
-        rateController.text,
-        totalAmountController.text,
-        amountWordsController.text,
-        termsController.text,
-      );
+      // 2. CHANGED: PDF Download Logic using PdfService
+      await PdfService().downloadAndSaveAgreement(contractData);
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Agreement Saved & Generated!")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Agreement Saved & Downloading...")));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -109,13 +99,14 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ... (Tera UI code same rahega, usme koi change nahi) ...
+    // Bas _handleGenerate update ho gaya hai upar wala.
     return Scaffold(
       appBar: AppBar(title: const Text("Contractor Agreement")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // --- Header Info ---
             TextField(controller: sNoController, decoration: const InputDecoration(labelText: "S.No")),
             TextField(controller: dateController, decoration: const InputDecoration(labelText: "Date")),
             TextField(controller: propNameController, decoration: const InputDecoration(labelText: "Property Name")),
@@ -123,28 +114,22 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
             const SizedBox(height: 20),
             const Text("Contractor Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
 
-            // Name: Capital Words Only
             TextField(
               controller: nameController,
               inputFormatters: [CapitalizeWordsFormatter()],
               decoration: const InputDecoration(labelText: "Contractor Name"),
             ),
-
-            // Domain: Capital Words
             TextField(
               controller: domainController,
               inputFormatters: [CapitalizeWordsFormatter()],
               decoration: const InputDecoration(labelText: "Sector / Domain (e.g. Electrician)"),
             ),
-
-            // Mobile: Numbers Only
             TextField(
               controller: mobileController,
               keyboardType: TextInputType.phone,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
               decoration: const InputDecoration(labelText: "Mobile No"),
             ),
-
             TextField(
               controller: addressController,
               inputFormatters: [CapitalizeWordsFormatter()],
@@ -157,7 +142,6 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
             TextField(controller: rateController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Agreed Rate")),
             TextField(controller: totalAmountController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Total Amount")),
 
-            // Amount in words
             TextField(
                 controller: amountWordsController,
                 inputFormatters: [CapitalizeWordsFormatter()],
@@ -165,7 +149,6 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
             ),
 
             const SizedBox(height: 10),
-            // Terms - Multiline
             TextField(
               controller: termsController,
               maxLines: 5,
