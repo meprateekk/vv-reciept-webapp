@@ -1,341 +1,243 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'models.dart';
-import 'pdf_generator.dart'; // Ensure pdf_generator.dart is in the same folder
+import 'screens/dashboard_screen.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // TODO: Replace with your actual Supabase Keys
+  // YAHAN APNA URL AUR KEY DAALO
   await Supabase.initialize(
     url: 'https://tzqeqnmjcpvvkfbjwtyj.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6cWVxbm1qY3B2dmtmYmp3dHlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzUxODIsImV4cCI6MjA4MDYxMTE4Mn0.AKR-VQKUOy6Is37ddIchYQ1CJFiOhGlVgklXd5OEHxM',
   );
 
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Site Manager',
       debugShowCheckedModeBanner: false,
+
+      // Professional Blue Theme Setup
       theme: ThemeData(
-        primaryColor: Color(0xFF001F3F), // Navy Blue
-        scaffoldBackgroundColor: Colors.grey[100],
-        appBarTheme: AppBarTheme(backgroundColor: Color(0xFF001F3F)),
+        primarySwatch: Colors.blue,
+        scaffoldBackgroundColor: Colors.grey[100], // Thoda light grey background
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+        ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFF001F3F),
+            backgroundColor: Colors.blue,
             foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
-      ),
-      home: HomePage(),
-    );
-  }
-}
-
-// --- DASHBOARD (Tabs) ---
-class HomePage extends StatefulWidget {
-  @override
-  _HomePageState createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
-  final List<Widget> _pages = [CreateReceiptScreen(), HistoryScreen()];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Color(0xFF001F3F),
-        onTap: (index) => setState(() => _selectedIndex = index),
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.add_circle), label: "New Receipt"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-        ],
-      ),
-    );
-  }
-}
-
-// --- TAB 1: CREATE RECEIPT ---
-class CreateReceiptScreen extends StatefulWidget {
-  @override
-  _CreateReceiptScreenState createState() => _CreateReceiptScreenState();
-}
-
-class _CreateReceiptScreenState extends State<CreateReceiptScreen> {
-  // Controllers
-  final _receiptNo = TextEditingController(text: "1001");
-  final _project = TextEditingController();
-  final _buyerName = TextEditingController();
-  final _phone = TextEditingController();
-  final _flatNo = TextEditingController();
-  final _type = TextEditingController();
-  final _totalAmount = TextEditingController();
-  final _paidAmount = TextEditingController();
-
-  String _paymentMode = "Cheque";
-  bool _isLoading = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("New Receipt", style: TextStyle(color: Colors.white))),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Section 1: Receipt Details
-            _buildSectionHeader("Receipt Details"),
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(children: [
-                  Row(children: [
-                    Expanded(child: _buildTextField(_receiptNo, "Receipt No", Icons.numbers)),
-                    SizedBox(width: 10),
-                    Expanded(child: _buildTextField(_project, "Project Name", Icons.business)),
-                  ]),
-                ]),
-              ),
-            ),
-
-            // Section 2: Buyer Details
-            SizedBox(height: 10),
-            _buildSectionHeader("Buyer Details"),
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(children: [
-                  _buildTextField(_buyerName, "Buyer Name", Icons.person),
-                  SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(child: _buildTextField(_phone, "Phone", Icons.phone)),
-                    SizedBox(width: 10),
-                    Expanded(child: _buildTextField(_flatNo, "Flat No", Icons.home)),
-                  ]),
-                  SizedBox(height: 10),
-                  _buildTextField(_type, "Flat Type (e.g. 2BHK)", Icons.layers),
-                ]),
-              ),
-            ),
-
-            // Section 3: Payment
-            SizedBox(height: 10),
-            _buildSectionHeader("Payment Info"),
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(children: [
-                  _buildTextField(_totalAmount, "Total Consideration (₹)", Icons.currency_rupee),
-                  SizedBox(height: 10),
-                  _buildTextField(_paidAmount, "Amount Received (₹)", Icons.attach_money),
-                  SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: "Payment Mode",
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-                    ),
-                    value: _paymentMode,
-                    items: ["Cheque", "Cash", "NEFT", "UPI"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                    onChanged: (val) => setState(() => _paymentMode = val!),
-                  ),
-                ]),
-              ),
-            ),
-
-            SizedBox(height: 30),
-
-            // SAVE BUTTON
-            SizedBox(width: double.infinity, height: 50,
-              child: ElevatedButton.icon(
-                icon: _isLoading ? Container(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white)) : Icon(Icons.save),
-                label: Text(_isLoading ? "SAVING..." : "SAVE & DOWNLOAD PDF", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                onPressed: _isLoading ? null : _handleSaveAndPrint,
-              ),
-            ),
-            SizedBox(height: 50),
-          ],
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Colors.blue, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
+
+      // Auth Flow Check
+      home: Supabase.instance.client.auth.currentUser != null
+          ? const DashboardScreen()
+          : const LoginScreen(),
+
+      routes: {
+        '/dashboard': (context) => const DashboardScreen(),
+        '/login': (context) => const LoginScreen(),
+      },
     );
   }
+}
 
-  Future<void> _handleSaveAndPrint() async {
+// --- UPDATED LOGIN SCREEN ---
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  bool _isLoading = false;
+  bool _isPasswordVisible = false; // Toggle ke liye state variable
+
+  Future<void> _signIn() async {
     setState(() => _isLoading = true);
-
-    // Calculations
-    double total = double.tryParse(_totalAmount.text) ?? 0;
-    double paid = double.tryParse(_paidAmount.text) ?? 0;
-    double balance = total - paid;
-
-    final data = ReceiptData(
-      receiptNo: _receiptNo.text,
-      date: DateTime.now().toString().split(' ')[0],
-      projectName: _project.text,
-      projectAddress: "Gwalior, MP",
-      buyerName: _buyerName.text,
-      address: "Gwalior, MP",
-      phone: _phone.text,
-      panNo: "NA",
-      flatNo: _flatNo.text,
-      floor: "NA",
-      type: _type.text,
-      superArea: "NA",
-      totalConsideration: _totalAmount.text,
-      amountReceived: _paidAmount.text,
-      amountInWords: "Rupees ... Only",
-      paymentTowards: "Booking",
-      paymentMode: _paymentMode,
-      balanceAmount: balance.toString(),
-    );
-
     try {
-      // 1. Save to Supabase
-      await Supabase.instance.client.from('receipts').insert({
-        'receipt_no': data.receiptNo,
-        'buyer_name': data.buyerName,
-        'details': data.toMap(), // Store full JSON
-      });
-
-      // 2. Generate PDF
-      await PdfGenerator.generate(data);
-
-      // 3. Clear Form (Optional)
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Saved Successfully!")));
-
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      }
+    } on AuthException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: Colors.red));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error occurred'), backgroundColor: Colors.red));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Helpers
-  Widget _buildSectionHeader(String title) => Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(title.toUpperCase(), style: TextStyle(color: Color(0xFF001F3F), fontWeight: FontWeight.bold))));
-
-  Widget _buildTextField(TextEditingController ctrl, String label, IconData icon) => TextField(controller: ctrl, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, color: Color(0xFF001F3F)), border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15)));
-}
-
-// --- TAB 2: HISTORY SCREEN ---
-class HistoryScreen extends StatefulWidget {
-  @override
-  _HistoryScreenState createState() => _HistoryScreenState();
-}
-
-class _HistoryScreenState extends State<HistoryScreen> {
-  // Search Query Store karne ke liye
-  String _searchQuery = "";
-
-  // Supabase Stream (Saara data layega, filter hum phone pe karenge for speed)
-  final _stream = Supabase.instance.client
-      .from('receipts')
-      .stream(primaryKey: ['id'])
-      .order('created_at', ascending: false);
+  Future<void> _signUp() async {
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account created! Please login.'), backgroundColor: Colors.green));
+    } on AuthException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("History", style: TextStyle(color: Colors.white))),
-      body: Column(
-        children: [
-          // --- SEARCH BAR ---
-          Container(
-            padding: EdgeInsets.all(12),
-            color: Colors.white,
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Search by Name or Receipt No...",
-                prefixIcon: Icon(Icons.search, color: Color(0xFF001F3F)),
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+      // AppBar hata diya taaki full screen professional look aaye (optional)
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // --- LOGO SECTION ---
+              Center(
+                child: Container(
+                  height: 120,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.2),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      )
+                    ],
+                  ),
+                  // Make sure pubspec.yaml me assets/logo.png add ho
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/logo.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Agar logo nahi mila to fallback icon dikhayega
+                        return const Icon(Icons.apartment, size: 60, color: Colors.blue);
+                      },
+                    ),
+                  ),
                 ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
               ),
-              onChanged: (val) {
-                // Jaise hi user type kare, state update karo
-                setState(() {
-                  _searchQuery = val.toLowerCase();
-                });
-              },
-            ),
+              const SizedBox(height: 30),
+
+              // --- TITLE ---
+              const Text(
+                "Welcome Back!",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Login to manage your sites",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 40),
+
+              // --- EMAIL FIELD ---
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: "Email Address",
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- PASSWORD FIELD WITH TOGGLE ---
+              TextField(
+                controller: _passwordController,
+                obscureText: !_isPasswordVisible, // Ye boolean decide karega text dikhana hai ya nahi
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isPasswordVisible = !_isPasswordVisible;
+                      });
+                    },
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // --- BUTTONS ---
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _signIn,
+                      child: const Text("LOGIN"),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextButton(
+                    onPressed: _signUp,
+                    child: const Text("Don't have an account? Sign Up"),
+                  ),
+                ],
+              ),
+            ],
           ),
-
-          // --- LIST ---
-          Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _stream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
-                  return Center(child: CircularProgressIndicator());
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty)
-                  return Center(child: Text("No receipts found"));
-
-                final receipts = snapshot.data!;
-
-                // --- FILTER LOGIC ---
-                // Agar search bar khali hai to sab dikhao, nahi to filter karo
-                final filteredList = receipts.where((item) {
-                  final name = item['buyer_name'].toString().toLowerCase();
-                  final receiptNo = item['receipt_no'].toString().toLowerCase();
-                  return name.contains(_searchQuery) || receiptNo.contains(_searchQuery);
-                }).toList();
-
-                if (filteredList.isEmpty)
-                  return Center(child: Text("No result found for '$_searchQuery'"));
-
-                return ListView.builder(
-                  padding: EdgeInsets.all(10),
-                  itemCount: filteredList.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredList[index];
-                    final details = item['details']; // JSON Data
-
-                    return Card(
-                      elevation: 2,
-                      margin: EdgeInsets.symmetric(vertical: 6),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Color(0xFF001F3F),
-                          child: Text(
-                              item['buyer_name'].toString().isNotEmpty
-                                  ? item['buyer_name'][0].toUpperCase()
-                                  : "?",
-                              style: TextStyle(color: Colors.white)
-                          ),
-                        ),
-                        title: Text(item['buyer_name'], style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("Receipt: ${item['receipt_no']}\nDate: ${details['date']}", style: TextStyle(height: 1.5)),
-                        trailing: IconButton(
-                          icon: Icon(Icons.download_rounded, color: Color(0xFF001F3F), size: 28),
-                          onPressed: () {
-                            // Re-generate PDF
-                            final receiptData = ReceiptData.fromMap(details);
-                            PdfGenerator.generate(receiptData);
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
