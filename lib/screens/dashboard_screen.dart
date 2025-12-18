@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Formatter ke liye zaroori hai
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/site_model.dart';
+import '../utils/formatters.dart';
 import 'site_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -135,6 +136,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('My Sites'),
         actions: [
+          // --- REFRESH BUTTON ADDED HERE ---
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () {
+              // setState call karne se UI rebuild hoga aur Stream dobara connect ho sakti hai
+              setState(() {});
+            },
+          ),
           IconButton(onPressed: _confirmLogout, icon: const Icon(Icons.logout)),
         ],
       ),
@@ -237,31 +247,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onPressed: () => _showSiteDialog(),
         child: const Icon(Icons.add),
       ),
-    );
-  }
-}
-
-// --- CUSTOM FORMATTER FOR LAPTOP/DESKTOP ---
-// Is class ko file ke last me rakh dena.
-// Ye har word ka pehla letter zabardasti Capital kar dega.
-class CapitalizeWordsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) {
-      return newValue;
-    }
-
-    // Har word ka first letter Capital karo
-    String newText = newValue.text.split(' ').map((str) {
-      if (str.isNotEmpty) {
-        return str[0].toUpperCase() + str.substring(1);
-      }
-      return '';
-    }).join(' ');
-
-    return TextEditingValue(
-      text: newText,
-      selection: newValue.selection,
     );
   }
 }

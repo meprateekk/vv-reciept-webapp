@@ -39,7 +39,9 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
 
   @override
   void dispose() {
-    // ... (Keep existing dispose logic)
+    sNoController.dispose();
+    dateController.dispose();
+    propNameController.dispose();
     nameController.dispose();
     domainController.dispose();
     mobileController.dispose();
@@ -84,7 +86,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
       });
 
       // 2. CHANGED: PDF Download Logic using PdfService
-      await PdfService().downloadAndSaveAgreement(contractData);
+      await PdfService.downloadAndSaveAgreement(contractData);
 
       if (mounted) {
         Navigator.pop(context);

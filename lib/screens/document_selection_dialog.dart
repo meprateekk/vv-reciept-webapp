@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'receipt_form.dart';
+import 'receipt_form_screen.dart';
 import 'contract_form.dart';
 
 class DocumentSelectionDialog extends StatelessWidget {

@@ -149,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     ],
                   ),
-                  // Make sure pubspec.yaml me assets/logo.png add ho
+
                   child: ClipOval(
                     child: Image.asset(
                       'assets/logo.png',
