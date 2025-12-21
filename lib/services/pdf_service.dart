@@ -9,17 +9,14 @@ import 'package:printing/printing.dart';
 import 'package:open_filex/open_filex.dart';
 
 class PdfService {
-  // --- COLORS ---
+
   static const PdfColor black = PdfColor.fromInt(0xff000000);
   static const PdfColor darkHeaderColor = PdfColor.fromInt(0xff404040);
   static const PdfColor sectionHeaderColor = PdfColor.fromInt(0xffA0A0A0);
-  static const PdfColor fieldBgColor = PdfColor.fromInt(0xffE3F2FD); // Light Blue
+  static const PdfColor fieldBgColor = PdfColor.fromInt(0xffE3F2FD);
 
-  // ==========================================
-  // 1. ENTRY POINTS (Ye methods apki UI call karegi)
-  // ==========================================
 
-  // Is method ka naam same rakha hai taaki error na aaye
+
   static Future<void> downloadAndSaveReceipt(Map<String, dynamic> data) async {
     try {
       final pdfBytes = await _generatePaymentReceipt(data);
