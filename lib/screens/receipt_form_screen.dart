@@ -9,7 +9,14 @@ class ReceiptFormScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final bool isEdit, isNewPayment;
 
-  const ReceiptFormScreen({super.key, required this.siteId, required this.siteName, this.initialData, this.isEdit = false, this.isNewPayment = false});
+  const ReceiptFormScreen({
+    super.key,
+    required this.siteId,
+    required this.siteName,
+    this.initialData,
+    this.isEdit = false,
+    this.isNewPayment = false
+  });
 
   @override
   State<ReceiptFormScreen> createState() => _ReceiptFormScreenState();
@@ -19,168 +26,174 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
 
+  // Controllers
   final sNoController = TextEditingController();
-  final dateController = TextEditingController(text: DateTime.now().toString().substring(0, 10));
-  final propNameController = TextEditingController();
   final nameController = TextEditingController();
   final mobileController = TextEditingController();
   final emailController = TextEditingController();
-  final projectNameController = TextEditingController();
   final addressController = TextEditingController();
   final propertyTypeController = TextEditingController();
   final floorController = TextEditingController();
   final amountController = TextEditingController();
-  final amountWordsController = TextEditingController();
-  final advanceController = TextEditingController();
-  final paymentDateController = TextEditingController(text: DateTime.now().toString().substring(0, 10));
-  final furtherPaymentDetailsController = TextEditingController();
-  String? selectedPaymentType;
 
   @override
   void initState() {
     super.initState();
-    propNameController.text = widget.siteName;
-
+    // Pre-fill logic if editing or adding payment
     if (widget.initialData != null) {
       final content = widget.initialData!['content'];
       nameController.text = content['party_name'] ?? '';
       mobileController.text = content['mobile'] ?? '';
       emailController.text = content['email'] ?? '';
-      projectNameController.text = content['projectName'] ?? '';
       addressController.text = content['address'] ?? '';
       propertyTypeController.text = content['propertyType'] ?? '';
       floorController.text = content['floor'] ?? '';
       amountController.text = content['total_amount'] ?? '';
-      amountWordsController.text = content['amount_words'] ?? '';
-      furtherPaymentDetailsController.text = content['further_payments'] ?? '';
-      selectedPaymentType = content['payment_type'];
 
       if (widget.isEdit) {
         sNoController.text = content['sNo'] ?? '';
-        advanceController.text = content['advance'] ?? '';
-        dateController.text = content['date'] ?? '';
-        paymentDateController.text = content['payment_date'] ?? '';
-      } else if (widget.isNewPayment) {
-        _fetchNextSerialNumber(nameController.text);
+      } else {
+        _fetchNextSNo(nameController.text);
       }
     } else {
       sNoController.text = "001";
     }
   }
 
-  Future<void> _fetchNextSerialNumber(String clientName) async {
-    if (clientName.trim().isEmpty) return;
-    final response = await _supabase.from('documents').select('id').eq('site_id', widget.siteId).eq('type', 'receipt').filter('content->>party_name', 'eq', clientName.trim());
-    setState(() => sNoController.text = (response.length + 1).toString().padLeft(3, '0'));
+  // Auto-increment S.No based on existing receipts for this buyer
+  Future<void> _fetchNextSNo(String name) async {
+    if (name.trim().isEmpty) return;
+    final res = await _supabase
+        .from('documents')
+        .select('id')
+        .eq('site_id', widget.siteId)
+        .eq('type', 'receipt')
+        .filter('content->>party_name', 'eq', name.trim());
+    setState(() => sNoController.text = (res.length + 1).toString().padLeft(3, '0'));
   }
 
-  Future<void> _handleGenerate() async {
-    double total = double.tryParse(amountController.text) ?? 0;
-    double current = double.tryParse(advanceController.text) ?? 0;
-
-    if (current > total) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Advance exceeds Total Amount!"), backgroundColor: Colors.red));
+  // --- THE MISSING SAVE LOGIC ---
+  Future<void> _handleSave() async {
+    if (nameController.text.isEmpty || amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill Name and Total Amount")),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
+
     try {
-      final history = await _supabase.from('documents').select('id, content').eq('site_id', widget.siteId).filter('content->>party_name', 'eq', nameController.text.trim());
-      double alreadyPaid = 0;
-      for (var doc in history) {
-        if (widget.isEdit && doc['id'] == widget.initialData!['id']) continue;
-        alreadyPaid += double.tryParse(doc['content']['advance']?.toString() ?? '0') ?? 0;
-      }
-
-      if ((alreadyPaid + current) > total) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Total Paid (₹${alreadyPaid + current}) exceeds limit (₹$total)!"), backgroundColor: Colors.red));
-        setState(() => _isLoading = false);
-        return;
-      }
-
       final data = {
         'sNo': sNoController.text,
-        'date': dateController.text,
-        'propertyName': propNameController.text,
-        'party_name': nameController.text,
+        'date': DateTime.now().toString().substring(0, 10),
+        'propertyName': widget.siteName,
+        'party_name': nameController.text, // Formatter handles capitalization
         'mobile': mobileController.text,
         'email': emailController.text,
-        'projectName': projectNameController.text,
         'address': addressController.text,
-        'propertyType': propertyTypeController.text,
+        'propertyType': propertyTypeController.text.toUpperCase(), // Strict UPPERCASE
         'floor': floorController.text,
         'total_amount': amountController.text,
-        'amount_words': amountWordsController.text.toUpperCase(),
-        'advance': advanceController.text,
-        'payment_type': selectedPaymentType ?? 'Cash',
-        'payment_date': paymentDateController.text,
-        'further_payments': furtherPaymentDetailsController.text,
+        'advance': "0", // Initial entry, payments added via "Add Payment"
       };
 
       if (widget.isEdit) {
-        await _supabase.from('documents').update({'content': data}).eq('id', widget.initialData!['id']);
+        await _supabase
+            .from('documents')
+            .update({'content': data})
+            .eq('id', widget.initialData!['id']);
       } else {
-        await _supabase.from('documents').insert({'site_id': widget.siteId, 'type': 'receipt', 'content': data, 'created_at': DateTime.now().toIso8601String()});
+        await _supabase.from('documents').insert({
+          'site_id': widget.siteId,
+          'type': 'receipt',
+          'content': data,
+          'created_at': DateTime.now().toIso8601String(),
+        });
       }
 
-      String cleanName = nameController.text.replaceAll(' ', '').toLowerCase();
-      String formattedFileName = "${sNoController.text}_${cleanName}_${propertyTypeController.text.toLowerCase()}";
+      // Generate PDF immediately after save
       final pdfData = Map<String, dynamic>.from(data);
-      pdfData['party_name'] = formattedFileName;
+      pdfData['party_name'] = "${sNoController.text}_${nameController.text.replaceAll(' ', '').toLowerCase()}";
       await PdfService.downloadAndSaveReceipt(pdfData);
 
-      if (mounted) Navigator.pop(context);
-    } catch (e) { print(e); } finally { setState(() => _isLoading = false); }
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Buyer details saved and PDF downloaded!"), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isEdit ? "Edit Sales Receipt" : "Sales Receipt")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      appBar: AppBar(title: Text(widget.isEdit ? "Edit Buyer" : "Add New Buyer")),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Row(children: [
-              Expanded(child: TextField(controller: sNoController, decoration: const InputDecoration(labelText: "S.No"))),
-              const SizedBox(width: 10),
-              Expanded(child: TextField(controller: dateController, decoration: const InputDecoration(labelText: "Date"))),
-            ]),
-            TextField(controller: propNameController, decoration: const InputDecoration(labelText: "Property Name")),
-            const SizedBox(height: 20),
-            const Align(alignment: Alignment.centerLeft, child: Text("Buyer Details", style: TextStyle(fontWeight: FontWeight.bold))),
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Buyer Name"), inputFormatters: [CapitalizeWordsFormatter()], onChanged: (v) => widget.isEdit ? null : _fetchNextSerialNumber(v)),
-            TextField(controller: mobileController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: "Mobile No")),
-            TextField(controller: emailController, decoration: const InputDecoration(labelText: "Email")),
-            const SizedBox(height: 20),
-            const Align(alignment: Alignment.centerLeft, child: Text("Property Details", style: TextStyle(fontWeight: FontWeight.bold))),
-            TextField(controller: projectNameController, decoration: const InputDecoration(labelText: "Project Name"), inputFormatters: [CapitalizeWordsFormatter()]),
-            TextField(controller: addressController, decoration: const InputDecoration(labelText: "Address"), inputFormatters: [CapitalizeWordsFormatter()]),
-            Row(children: [
-              Expanded(child: TextField(controller: propertyTypeController, decoration: const InputDecoration(labelText: "Property Type"))),
-              const SizedBox(width: 10),
-              Expanded(child: TextField(controller: floorController, decoration: const InputDecoration(labelText: "Floor"))),
-            ]),
-            const SizedBox(height: 20),
-            const Align(alignment: Alignment.centerLeft, child: Text("Payment Details", style: TextStyle(fontWeight: FontWeight.bold))),
-            TextField(controller: amountController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Total Consideration Amount")),
-            TextField(controller: amountWordsController, decoration: const InputDecoration(labelText: "Amount In Words"), inputFormatters: [CapitalizeWordsFormatter()]),
-            TextField(controller: advanceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Advance (Current Payment)")),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: "Payment Type"),
-              value: selectedPaymentType,
-              items: ["Cash", "UPI", "Cheque", "Bank Transfer"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-              onChanged: (v) => setState(() => selectedPaymentType = v),
+            const Text("Buyer Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Divider(),
+            TextField(
+              controller: nameController,
+              inputFormatters: [CapitalizeWordsFormatter()], // Strict Capitalization
+              decoration: const InputDecoration(labelText: "Name"),
+              onChanged: (v) => widget.isEdit ? null : _fetchNextSNo(v),
             ),
-            TextField(controller: paymentDateController, decoration: const InputDecoration(labelText: "Payment Date")),
-            const SizedBox(height: 20),
-            TextField(controller: furtherPaymentDetailsController, maxLines: 3, decoration: const InputDecoration(labelText: "Further Payment Terms", border: OutlineInputBorder())),
+            TextField(
+              controller: mobileController,
+              keyboardType: TextInputType.number, // Number only
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+              decoration: const InputDecoration(labelText: "Phone Number"),
+            ),
+            TextField(controller: emailController, decoration: const InputDecoration(labelText: "Email")),
+            TextField(
+                controller: addressController,
+                inputFormatters: [CapitalizeWordsFormatter()], // Strict Capitalization
+                decoration: const InputDecoration(labelText: "Address")
+            ),
+
             const SizedBox(height: 30),
-            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-              onPressed: _isLoading ? null : _handleGenerate,
-              child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(widget.isEdit ? "Update & Download" : "Generate & Save"),
-            )),
+            const Text("Property Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Divider(),
+            TextField(
+              controller: propertyTypeController,
+              onChanged: (v) {
+                // Force Uppercase in real-time
+                propertyTypeController.value = propertyTypeController.value.copyWith(
+                  text: v.toUpperCase(),
+                  selection: TextSelection.collapsed(offset: v.length),
+                );
+              },
+              decoration: const InputDecoration(labelText: "Type (e.g. 2BHK)"),
+            ),
+            TextField(controller: floorController, decoration: const InputDecoration(labelText: "Floor")),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Total Consideration Amount"),
+            ),
+
+            const SizedBox(height: 30),
+            Row(
+              children: [
+                Expanded(child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                    onPressed: _handleSave,
+                    child: const Text("Save")
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel"))),
+              ],
+            )
           ],
         ),
       ),

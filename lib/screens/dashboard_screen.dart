@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Formatter ke liye zaroori hai
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/site_model.dart';
 import '../utils/formatters.dart';
@@ -14,8 +14,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final _supabase = Supabase.instance.client;
-  final TextEditingController _searchController = TextEditingController(); // Search ke liye controller
-  String _searchQuery = ""; // Search text store karne ke liye
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
 
   @override
   void dispose() {
@@ -73,8 +73,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // --- ADD OR EDIT SITE DIALOG ---
   void _showSiteDialog({Site? site}) {
+    // Controller names unified to addressController
     final nameController = TextEditingController(text: site != null ? site.name : '');
-    final locationController = TextEditingController(text: site != null ? site.location : '');
+    final addressController = TextEditingController(text: site != null ? site.location : '');
     final isEditMode = site != null;
 
     showDialog(
@@ -86,16 +87,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             TextField(
               controller: nameController,
-              // Laptop ke liye ye formatter zaroori hai
-              inputFormatters: [CapitalizeWordsFormatter()],
+              inputFormatters: [CapitalizeWordsFormatter()], // Strict Capitalization
               decoration: const InputDecoration(hintText: 'Site Name', labelText: 'Name'),
             ),
             const SizedBox(height: 10),
             TextField(
-              controller: locationController,
-              // Location me bhi first letter capital hoga
-              inputFormatters: [CapitalizeWordsFormatter()],
-              decoration: const InputDecoration(hintText: 'Location', labelText: 'Location'),
+              controller: addressController,
+              inputFormatters: [CapitalizeWordsFormatter()], // Maintain capitalization for Address
+              decoration: const InputDecoration(
+                labelText: "Address", // Location renamed to Address
+                hintText: "Enter Site Address",
+              ),
             ),
           ],
         ),
@@ -104,19 +106,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton(
             onPressed: () async {
               final name = nameController.text.trim();
-              final location = locationController.text.trim();
+              final address = addressController.text.trim(); // Fixed: Using addressController
               final userId = _supabase.auth.currentUser!.id;
 
-              if (name.isNotEmpty && location.isNotEmpty) {
+              if (name.isNotEmpty && address.isNotEmpty) {
                 if (isEditMode) {
                   await _supabase.from('sites').update({
                     'name': name,
-                    'location': location,
+                    'location': address, // Database column remains 'location'
                   }).eq('id', site.id);
                 } else {
                   await _supabase.from('sites').insert({
                     'name': name,
-                    'location': location,
+                    'location': address,
                     'user_id': userId,
                   });
                 }
@@ -136,22 +138,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('My Sites'),
         actions: [
-          // --- REFRESH BUTTON ADDED HERE ---
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () {
-              // setState call karne se UI rebuild hoga aur Stream dobara connect ho sakti hai
-              setState(() {});
-            },
+            onPressed: () => setState(() {}),
           ),
           IconButton(onPressed: _confirmLogout, icon: const Icon(Icons.logout)),
         ],
       ),
-      // Column use kiya taaki Search Bar upar fix rahe aur list scroll kare
       body: Column(
         children: [
-          // --- SEARCH BAR ADDED HERE ---
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
@@ -159,22 +155,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: InputDecoration(
                 hintText: 'Search sites...',
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
                 fillColor: Colors.grey[100],
               ),
-              onChanged: (value) {
-                // Jaise hi type karoge, UI update hoga
-                setState(() {
-                  _searchQuery = value.toLowerCase();
-                });
-              },
+              onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
             ),
           ),
-
-          // --- SITE LIST ---
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _supabase.from('sites').stream(primaryKey: ['id']).order('created_at'),
@@ -183,23 +170,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
                 final data = snapshot.data!;
-
-                // --- FILTERING LOGIC ---
-                // Data aane ke baad search query se filter kar rahe hain
                 final filteredData = data.where((siteData) {
                   final siteName = siteData['name'].toString().toLowerCase();
                   return siteName.contains(_searchQuery);
                 }).toList();
 
-                if (filteredData.isEmpty) {
-                  return const Center(child: Text("No sites found."));
-                }
+                if (filteredData.isEmpty) return const Center(child: Text("No sites found."));
 
                 return ListView.builder(
                   itemCount: filteredData.length,
                   itemBuilder: (context, index) {
                     final site = Site.fromJson(filteredData[index]);
-
                     return Card(
                       elevation: 2,
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -209,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: Icon(Icons.apartment, color: Colors.white),
                         ),
                         title: Text(site.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(site.location),
+                        subtitle: Text(site.location), // Displaying address as subtitle
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -223,17 +204,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ],
                         ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SiteDetailScreen(
-                                siteId: site.id,
-                                siteName: site.name,
-                              ),
-                            ),
-                          );
-                        },
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SiteDetailScreen(siteId: site.id, siteName: site.name),
+                          ),
+                        ),
                       ),
                     );
                   },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/pdf_service.dart';
 import 'receipt_form_screen.dart';
-import 'contract_form.dart';
+import 'payment_form_screen.dart'; // Naya payment form import kiya
 
 // ==========================================
 // 1. CLIENT LIST SCREEN (Level 3)
@@ -10,7 +10,7 @@ import 'contract_form.dart';
 class ClientListScreen extends StatefulWidget {
   final String siteId;
   final String siteName;
-  final String type; // 'receipt' or 'agreement'
+  final String type;
 
   const ClientListScreen({super.key, required this.siteId, required this.siteName, required this.type});
 
@@ -31,16 +31,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
         backgroundColor: widget.type == 'receipt' ? Colors.blue : Colors.green,
         foregroundColor: Colors.white,
         actions: [
-          // 1. REFRESH BUTTON
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: () => setState(() {})),
         ],
       ),
       body: Column(
         children: [
-          // 2. SEARCH BAR
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
@@ -58,22 +53,16 @@ class _ClientListScreenState extends State<ClientListScreen> {
 
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              // FIX: Removed .eq() from stream call
               stream: _supabase.from('documents').stream(primaryKey: ['id']).eq('site_id', widget.siteId),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-                // Manual filter for document type
                 final filteredDocs = snapshot.data!.where((doc) => doc['type'] == widget.type).toList();
 
-                // Grouping Logic
                 Map<String, List<Map<String, dynamic>>> groupedClients = {};
                 for (var doc in filteredDocs) {
                   final content = doc['content'] ?? {};
-                  String name = widget.type == 'receipt'
-                      ? (content['party_name'] ?? '')
-                      : (content['contractor_name'] ?? '');
-
+                  String name = widget.type == 'receipt' ? (content['party_name'] ?? '') : (content['contractor_name'] ?? '');
                   if (name.toLowerCase().contains(_searchQuery)) {
                     groupedClients.putIfAbsent(name, () => []).add(doc);
                   }
@@ -84,22 +73,18 @@ class _ClientListScreenState extends State<ClientListScreen> {
                 return ListView(
                   children: groupedClients.entries.map((entry) {
                     final firstDoc = entry.value.first['content'];
-
-                    // SUMMARY CALCULATIONS
                     double totalConsideration = double.tryParse(firstDoc['total_amount']?.toString() ?? '0') ?? 0;
                     double totalPaid = 0;
                     for (var doc in entry.value) {
                       totalPaid += double.tryParse(doc['content']['advance']?.toString() ?? '0') ?? 0;
                     }
                     double pendingAmount = totalConsideration - totalPaid;
-                    String propertyType = widget.type == 'receipt'
-                        ? (firstDoc['propertyType'] ?? 'N/A')
-                        : (firstDoc['domain'] ?? 'N/A');
+                    String propertyType = widget.type == 'receipt' ? (firstDoc['propertyType'] ?? 'N/A') : (firstDoc['domain'] ?? 'N/A');
 
                     return Card(
                       elevation: 3,
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      child: InkWell(
+                      child: ListTile(
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -112,25 +97,36 @@ class _ClientListScreenState extends State<ClientListScreen> {
                             ),
                           ),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(entry.key.toUpperCase(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              const Divider(),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildStat("Type", propertyType),
-                                  _buildStat("Receipts", entry.value.length.toString()),
-                                  _buildStat("Paid", "₹${totalPaid.toStringAsFixed(0)}"),
-                                  _buildStat("Pending", "₹${pendingAmount.toStringAsFixed(0)}",
-                                      color: pendingAmount > 0 ? Colors.red : Colors.green),
-                                ],
+                        title: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.key.toUpperCase(),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
-                            ],
-                          ),
+                            ),
+                            // --- ADDED THIS: Receipt Count Badge ---
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: widget.type == 'receipt' ? Colors.blue.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "${entry.value.length} Receipts", // Shows total count
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: widget.type == 'receipt' ? Colors.blue : Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text("Type: $propertyType | Paid: ₹$totalPaid | Pending: ₹$pendingAmount"),
                         ),
                       ),
                     );
@@ -141,46 +137,26 @@ class _ClientListScreenState extends State<ClientListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      // FAB changed to "Add Buyer" logic
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: widget.type == 'receipt' ? Colors.blue : Colors.green,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => widget.type == 'receipt'
-                  ? ReceiptFormScreen(siteId: widget.siteId, siteName: widget.siteName)
-                  : ContractFormScreen(siteId: widget.siteId, siteName: widget.siteName),
-            ),
-          );
-        },
-        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReceiptFormScreen(siteId: widget.siteId, siteName: widget.siteName))),
+        label: const Text("Add Buyer"),
+        icon: const Icon(Icons.person_add),
       ),
-    );
-  }
-
-  Widget _buildStat(String label, String value, {Color? color}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color ?? Colors.black87)),
-      ],
     );
   }
 }
 
 // ==========================================
-// 2. CLIENT DETAIL SCREEN (Level 4)
+// 2. CLIENT DETAIL SCREEN (Buyer Profile)
 // ==========================================
 class ClientDetailScreen extends StatefulWidget {
   final String clientName;
   final List<Map<String, dynamic>> documents;
   final String siteName, siteId, type;
 
-  const ClientDetailScreen({
-    super.key, required this.clientName, required this.documents,
-    required this.siteName, required this.siteId, required this.type
-  });
+  const ClientDetailScreen({super.key, required this.clientName, required this.documents, required this.siteName, required this.siteId, required this.type});
 
   @override
   State<ClientDetailScreen> createState() => _ClientDetailScreenState();
@@ -191,21 +167,12 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = "";
 
-  Future<void> _deleteDoc(String id) async {
-    await _supabase.from('documents').delete().eq('id', id);
-    if (mounted) Navigator.pop(context);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final filteredHistory = widget.documents.where((doc) =>
-        (doc['content']['sNo'] ?? '').toString().contains(_searchQuery)).toList();
+    final filteredHistory = widget.documents.where((doc) => (doc['content']['sNo'] ?? '').toString().contains(_searchQuery)).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.clientName),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: () => Navigator.pop(context))],
-      ),
+      appBar: AppBar(title: const Text("Buyer Profile")), // AppBar Title changed
       body: Column(
         children: [
           Padding(
@@ -224,40 +191,14 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 final content = doc['content'];
                 return Card(
                   margin: const EdgeInsets.all(8),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: CircleAvatar(child: Text(content['sNo'] ?? "0")),
-                        title: Text("Paid: ₹${content['advance']}"),
-                        subtitle: Text("Date: ${content['payment_date'] ?? content['date']}"),
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          // 3. EDIT BUTTON: Prefills data
-                          TextButton.icon(
-                            icon: const Icon(Icons.edit, size: 18, color: Colors.orange),
-                            label: const Text("Edit", style: TextStyle(color: Colors.orange)),
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReceiptFormScreen(
-                              siteId: widget.siteId, siteName: widget.siteName, initialData: doc, isEdit: true,
-                            ))),
-                          ),
-                          TextButton.icon(
-                            icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                            label: const Text("Delete", style: TextStyle(color: Colors.red)),
-                            onPressed: () => _deleteDoc(doc['id']),
-                          ),
-                          TextButton.icon(
-                            icon: const Icon(Icons.download, size: 18, color: Colors.blue),
-                            label: const Text("PDF", style: TextStyle(color: Colors.blue)),
-                            onPressed: () => widget.type == 'receipt'
-                                ? PdfService.downloadAndSaveReceipt(content)
-                                : PdfService.downloadAndSaveAgreement(content),
-                          ),
-                        ],
-                      ),
-                    ],
+                  child: ListTile(
+                    leading: CircleAvatar(child: Text(content['sNo'] ?? "0")),
+                    title: Text("Paid: ₹${content['advance']}"),
+                    subtitle: Text("Date: ${content['payment_date'] ?? content['date']}"),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.download, color: Colors.blue),
+                      onPressed: () => widget.type == 'receipt' ? PdfService.downloadAndSaveReceipt(content) : PdfService.downloadAndSaveAgreement(content),
+                    ),
                   ),
                 );
               },
@@ -265,11 +206,13 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReceiptFormScreen(
-          siteId: widget.siteId, siteName: widget.siteName, initialData: widget.documents.first, isNewPayment: true,
+      // FAB changed to "Add Payment"
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentFormScreen(
+          siteId: widget.siteId, siteName: widget.siteName, initialData: widget.documents.first,
         ))),
-        child: const Icon(Icons.add_card),
+        label: const Text("Add Payment"),
+        icon: const Icon(Icons.add_card),
       ),
     );
   }
