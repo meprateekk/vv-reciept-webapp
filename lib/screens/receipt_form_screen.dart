@@ -84,6 +84,9 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Fetch site data to get property address
+      final siteData = await _supabase.from('sites').select('location').eq('id', widget.siteId).single();
+      
       final data = {
         'sNo': sNoController.text,
         'date': DateTime.now().toString().substring(0, 10),
@@ -96,6 +99,7 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         'floor': floorController.text,
         'total_amount': amountController.text,
         'advance': "0", // Initial entry, payments added via "Add Payment"
+        'propertyAddress': siteData['location'] ?? '', // Add property address from site data
       };
 
       if (widget.isEdit) {
@@ -112,15 +116,10 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         });
       }
 
-      // Generate PDF immediately after save
-      final pdfData = Map<String, dynamic>.from(data);
-      pdfData['party_name'] = "${sNoController.text}_${nameController.text.replaceAll(' ', '').toLowerCase()}";
-      await PdfService.downloadAndSaveReceipt(pdfData);
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Buyer details saved and PDF downloaded!"), backgroundColor: Colors.green),
+          const SnackBar(content: Text("Buyer details saved successfully!"), backgroundColor: Colors.green),
         );
       }
     } catch (e) {

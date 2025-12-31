@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/pdf_service.dart';
 import 'receipt_form_screen.dart';
 import 'payment_form_screen.dart'; // Naya payment form import kiya
+import 'payment_detail_screen.dart';
 
 // ==========================================
 // 1. CLIENT LIST SCREEN (Level 3)
@@ -195,10 +196,25 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                     leading: CircleAvatar(child: Text(content['sNo'] ?? "0")),
                     title: Text("Paid: ₹${content['advance']}"),
                     subtitle: Text("Date: ${content['payment_date'] ?? content['date']}"),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.download, color: Colors.blue),
-                      onPressed: () => widget.type == 'receipt' ? PdfService.downloadAndSaveReceipt(content) : PdfService.downloadAndSaveAgreement(content),
-                    ),
+                    trailing: (content['advance'] != null && content['advance'] != "0" && double.tryParse(content['advance'].toString()) != 0)
+                        ? IconButton(
+                            icon: const Icon(Icons.download, color: Colors.blue),
+                            onPressed: () => widget.type == 'receipt' ? PdfService.downloadAndSaveReceipt(content) : PdfService.downloadAndSaveAgreement(content),
+                          )
+                        : const SizedBox.shrink(),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PaymentDetailScreen(
+                            document: doc,
+                            siteId: widget.siteId,
+                            siteName: widget.siteName,
+                            onDelete: () => setState(() {}),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 );
               },

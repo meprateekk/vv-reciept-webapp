@@ -54,14 +54,19 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
         return;
       }
 
-      // 3. Prepare Data for new Receipt
+      // 3. Fetch site data to get property address
+      final siteData = await _supabase.from('sites').select('location').eq('id', widget.siteId).single();
+
+      // 4. Prepare Data for new Receipt
       final newData = Map<String, dynamic>.from(buyerContent);
       newData['advance'] = amountController.text;
       newData['payment_date'] = dateController.text;
       newData['payment_type'] = selectedType ?? "Cash";
-      newData['sNo'] = (res.length + 1).toString().padLeft(3, '0');
+      // Start numbering from 1 for actual payments (skip the 0 advance draft)
+      newData['sNo'] = (res.length).toString().padLeft(3, '0');
+      newData['propertyAddress'] = siteData['location'] ?? ''; // Add property address separately
 
-      // 4. Save to Supabase
+      // 5. Save to Supabase
       await _supabase.from('documents').insert({
         'site_id': widget.siteId,
         'type': 'receipt',

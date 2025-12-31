@@ -73,8 +73,8 @@ class PdfService {
               _buildFieldRow('Email Address', 'bhavikdevelopers@gmail.com'),
               pw.SizedBox(height: 15),
               _buildSectionHeader('PROPERTY DETAILS'),
-              _buildFieldRow('Project Name', data['projectName'] ?? ''),
-              _buildFieldRow('Address', data['address'] ?? ''),
+              _buildFieldRow('Project Name', data['propertyName'] ?? data['projectName'] ?? ''),
+              _buildFieldRow('Address', data['propertyAddress'] ?? ''),
               pw.Row(children: [
                 pw.Expanded(child: _buildFieldRow('Property Type', data['propertyType'] ?? '')),
                 pw.SizedBox(width: 10),
