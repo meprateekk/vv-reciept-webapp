@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/site_model.dart';
 import '../utils/formatters.dart';
+import '../services/cached_data_service.dart';
+import '../widgets/loading_skeletons.dart';
 import 'site_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -16,6 +18,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  bool _isLoading = false;
+  bool _isRefreshing = false;
 
   @override
   void dispose() {
@@ -132,6 +136,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<void> _refreshData() async {
+    setState(() => _isRefreshing = true);
+    try {
+      await CachedDataService.getSites(forceRefresh: true);
+      if (mounted) setState(() => _isRefreshing = false);
+    } catch (e) {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,9 +153,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: const Text('My Sites'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: _isRefreshing 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () => setState(() {}),
+            onPressed: _isRefreshing ? null : _refreshData,
           ),
           IconButton(onPressed: _confirmLogout, icon: const Icon(Icons.logout)),
         ],
@@ -163,11 +183,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _supabase.from('sites').stream(primaryKey: ['id']).order('created_at'),
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: CachedDataService.getSites(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return ListView.builder(
+                    itemCount: 5,
+                    itemBuilder: (context, index) => const SiteSkeleton(),
+                  );
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text("No sites found."));
+                }
 
                 final data = snapshot.data!;
                 final filteredData = data.where((siteData) {
@@ -190,7 +222,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: Icon(Icons.apartment, color: Colors.white),
                         ),
                         title: Text(site.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(site.location), // Displaying address as subtitle
+                        subtitle: Text(site.location),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

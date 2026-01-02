@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/pdf_service.dart';
+import '../services/cached_data_service.dart';
+import '../widgets/loading_skeletons.dart';
 import 'receipt_form_screen.dart';
-import 'payment_form_screen.dart'; // Naya payment form import kiya
+import 'payment_form_screen.dart';
 import 'payment_detail_screen.dart';
 
 // ==========================================
@@ -23,6 +25,17 @@ class _ClientListScreenState extends State<ClientListScreen> {
   final _supabase = Supabase.instance.client;
   final _searchController = TextEditingController();
   String _searchQuery = "";
+  bool _isRefreshing = false;
+
+  Future<void> _refreshData() async {
+    setState(() => _isRefreshing = true);
+    try {
+      await CachedDataService.getDocuments(widget.siteId, widget.type, forceRefresh: true);
+      if (mounted) setState(() => _isRefreshing = false);
+    } catch (e) {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +45,16 @@ class _ClientListScreenState extends State<ClientListScreen> {
         backgroundColor: widget.type == 'receipt' ? Colors.blue : Colors.green,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () => setState(() {})),
+          IconButton(
+            icon: _isRefreshing 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: _isRefreshing ? null : _refreshData,
+          ),
         ],
       ),
       body: Column(
@@ -53,12 +75,25 @@ class _ClientListScreenState extends State<ClientListScreen> {
           ),
 
           Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _supabase.from('documents').stream(primaryKey: ['id']).eq('site_id', widget.siteId),
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: CachedDataService.getDocuments(widget.siteId, widget.type),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return ListView.builder(
+                    itemCount: 5,
+                    itemBuilder: (context, index) => const ClientSkeleton(),
+                  );
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text("No clients found."));
+                }
 
-                final filteredDocs = snapshot.data!.where((doc) => doc['type'] == widget.type).toList();
+                final filteredDocs = snapshot.data!;
 
                 Map<String, List<Map<String, dynamic>>> groupedClients = {};
                 for (var doc in filteredDocs) {
@@ -76,8 +111,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
                     final firstDoc = entry.value.first['content'];
                     double totalConsideration = double.tryParse(firstDoc['total_amount']?.toString() ?? '0') ?? 0;
                     double totalPaid = 0;
+                    int actualReceiptCount = 0; // Count only actual payments
                     for (var doc in entry.value) {
-                      totalPaid += double.tryParse(doc['content']['advance']?.toString() ?? '0') ?? 0;
+                      final advance = double.tryParse(doc['content']['advance']?.toString() ?? '0') ?? 0;
+                      totalPaid += advance;
+                      if (advance > 0) actualReceiptCount++; // Only count non-zero payments
                     }
                     double pendingAmount = totalConsideration - totalPaid;
                     String propertyType = widget.type == 'receipt' ? (firstDoc['propertyType'] ?? 'N/A') : (firstDoc['domain'] ?? 'N/A');
@@ -115,7 +153,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                "${entry.value.length} Receipts", // Shows total count
+                                "$actualReceiptCount Receipts", // Shows only actual payment receipts
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: widget.type == 'receipt' ? Colors.blue : Colors.green,
@@ -170,7 +208,13 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredHistory = widget.documents.where((doc) => (doc['content']['sNo'] ?? '').toString().contains(_searchQuery)).toList();
+    // Filter out zero-payment cards and adjust numbering
+    final paidHistory = widget.documents.where((doc) {
+      final advance = double.tryParse(doc['content']['advance']?.toString() ?? '0') ?? 0;
+      return advance > 0; // Only include actual payments
+    }).toList();
+    
+    final filteredHistory = paidHistory.where((doc) => (doc['content']['sNo'] ?? '').toString().contains(_searchQuery)).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text("Buyer Profile")), // AppBar Title changed
@@ -193,7 +237,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 return Card(
                   margin: const EdgeInsets.all(8),
                   child: ListTile(
-                    leading: CircleAvatar(child: Text(content['sNo'] ?? "0")),
+                    leading: CircleAvatar(child: Text((index + 1).toString().padLeft(3, '0'))),
                     title: Text("Paid: ₹${content['advance']}"),
                     subtitle: Text("Date: ${content['payment_date'] ?? content['date']}"),
                     trailing: (content['advance'] != null && content['advance'] != "0" && double.tryParse(content['advance'].toString()) != 0)
