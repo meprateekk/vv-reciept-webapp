@@ -4,6 +4,7 @@ import '../services/pdf_service.dart';
 import '../services/cached_data_service.dart';
 import '../widgets/loading_skeletons.dart';
 import 'receipt_form_screen.dart';
+import 'contract_form.dart';
 import 'payment_form_screen.dart';
 import 'payment_detail_screen.dart';
 
@@ -26,6 +27,52 @@ class _ClientListScreenState extends State<ClientListScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = "";
   bool _isRefreshing = false;
+
+  // --- DELETE CLIENT FUNCTIONALITY ---
+  Future<void> _confirmDeleteClient(String clientName) async {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete $clientName'),
+        content: Text('Are you sure you want to delete all records for $clientName? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                // Delete all documents for this client
+                final columnName = widget.type == 'receipt' ? 'party_name' : 'contractor_name';
+                await _supabase
+                    .from('documents')
+                    .delete()
+                    .eq('site_id', widget.siteId)
+                    .eq('type', widget.type)
+                    .eq('content->>$columnName', clientName);
+                
+                // Refresh cache and UI
+                await CachedDataService.invalidateDocumentsCache(widget.siteId, widget.type);
+                setState(() {});
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$clientName deleted successfully')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error deleting client: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _refreshData() async {
     setState(() => _isRefreshing = true);
@@ -99,8 +146,23 @@ class _ClientListScreenState extends State<ClientListScreen> {
                 for (var doc in filteredDocs) {
                   final content = doc['content'] ?? {};
                   String name = widget.type == 'receipt' ? (content['party_name'] ?? '') : (content['contractor_name'] ?? '');
-                  if (name.toLowerCase().contains(_searchQuery)) {
-                    groupedClients.putIfAbsent(name, () => []).add(doc);
+                  
+                  // Additional validation: ensure name is not empty and matches the correct type
+                  if (name.isNotEmpty && name.toLowerCase().contains(_searchQuery)) {
+                    // Double-check: for receipt type, ensure party_name exists and contractor_name doesn't exist
+                    // for agreement type, ensure contractor_name exists and party_name doesn't exist
+                    bool isValidType = false;
+                    if (widget.type == 'receipt') {
+                      isValidType = content['party_name'] != null && content['party_name'].toString().isNotEmpty && 
+                                   (content['contractor_name'] == null || content['contractor_name'].toString().isEmpty);
+                    } else {
+                      isValidType = content['contractor_name'] != null && content['contractor_name'].toString().isNotEmpty && 
+                                   (content['party_name'] == null || content['party_name'].toString().isEmpty);
+                    }
+                    
+                    if (isValidType) {
+                      groupedClients.putIfAbsent(name, () => []).add(doc);
+                    }
                   }
                 }
 
@@ -167,6 +229,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
                           padding: const EdgeInsets.only(top: 4.0),
                           child: Text("Type: $propertyType | Paid: ₹$totalPaid | Pending: ₹$pendingAmount"),
                         ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _confirmDeleteClient(entry.key),
+                          tooltip: 'Delete Client',
+                        ),
                       ),
                     );
                   }).toList(),
@@ -176,11 +243,21 @@ class _ClientListScreenState extends State<ClientListScreen> {
           ),
         ],
       ),
-      // FAB changed to "Add Buyer" logic
+      // FAB changed to dynamic form navigation
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: widget.type == 'receipt' ? Colors.blue : Colors.green,
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReceiptFormScreen(siteId: widget.siteId, siteName: widget.siteName))),
-        label: const Text("Add Buyer"),
+        onPressed: () {
+          if (widget.type == 'receipt') {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (context) => ReceiptFormScreen(siteId: widget.siteId, siteName: widget.siteName)
+            ));
+          } else {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (context) => ContractFormScreen(siteId: widget.siteId, siteName: widget.siteName)
+            ));
+          }
+        },
+        label: Text(widget.type == 'receipt' ? "Add Buyer" : "Add Contractor"),
         icon: const Icon(Icons.person_add),
       ),
     );

@@ -186,7 +186,7 @@ class PdfService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Column(children: [pw.SizedBox(height: 30), _buildHeaderLine('Date:', data['date'] ?? '')]),
+        pw.SizedBox(width: 70), // Spacer to balance with serial number
         pw.Container(height: 140, width: 180, alignment: pw.Alignment.center, child: pw.Image(logo, fit: pw.BoxFit.contain)),
         pw.Column(children: [pw.SizedBox(height: 30), _buildHeaderLine('Sn. No.:', data['sNo'] ?? '')]),
       ],
